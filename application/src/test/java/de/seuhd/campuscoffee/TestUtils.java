@@ -81,4 +81,14 @@ public class TestUtils {
                 )
                 .collect(Collectors.toList());
     }
+
+    public static PosDto importPosFromOsm(Long nodeId) {
+        return given()
+                .contentType(ContentType.JSON)
+                .when()
+                .post("/api/pos/import/osm/{nodeId}", nodeId)
+                .then()
+                .statusCode(201)
+                .extract().as(PosDto.class);
+    }
 }

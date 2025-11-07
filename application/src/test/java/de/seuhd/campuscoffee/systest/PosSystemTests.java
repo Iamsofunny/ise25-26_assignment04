@@ -1,6 +1,8 @@
 package de.seuhd.campuscoffee.systest;
 
+import de.seuhd.campuscoffee.domain.model.CampusType;
 import de.seuhd.campuscoffee.domain.model.Pos;
+import de.seuhd.campuscoffee.domain.model.PosType;
 import de.seuhd.campuscoffee.domain.tests.TestFixtures;
 import org.junit.jupiter.api.Test;
 import java.util.List;
@@ -78,5 +80,36 @@ public class PosSystemTests extends AbstractSysTest {
                 .usingRecursiveComparison()
                 .ignoringFields("createdAt", "updatedAt")
                 .isEqualTo(posToUpdate);
+    }
+
+    @Test
+    void importPosFromOsmNode() {
+        Pos importedPos = posDtoMapper.toDomain(TestUtils.importPosFromOsm(5589879349L));
+
+        Pos expected = Pos.builder()
+                .id(null)
+                .createdAt(null)
+                .updatedAt(null)
+                .name("Rada")
+                .description("Caffé und Rösterei")
+                .type(PosType.CAFE)
+                .campus(CampusType.ALTSTADT)
+                .street("Untere Straße")
+                .houseNumber("21")
+                .postalCode(69117)
+                .city("Heidelberg")
+                .build();
+
+        assertThat(importedPos)
+                .usingRecursiveComparison()
+                .ignoringFields("id", "createdAt", "updatedAt")
+                .isEqualTo(expected);
+
+        Pos persistedPos = posDtoMapper.toDomain(TestUtils.retrievePosById(importedPos.id()));
+
+        assertThat(persistedPos)
+                .usingRecursiveComparison()
+                .ignoringFields("createdAt", "updatedAt")
+                .isEqualTo(importedPos);
     }
 }

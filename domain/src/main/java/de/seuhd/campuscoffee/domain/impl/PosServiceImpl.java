@@ -17,6 +17,8 @@ import org.jspecify.annotations.NonNull;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -65,14 +67,13 @@ public class PosServiceImpl implements PosService {
     }
 
     @Override
-    public @NonNull Pos importFromOsmNode(@NonNull Long nodeId) throws OsmNodeNotFoundException {
+    public @NonNull Pos importFromOsmNode(@NonNull Long nodeId)
+            throws OsmNodeNotFoundException, OsmNodeMissingFieldsException {
         log.info("Importing POS from OpenStreetMap node {}...", nodeId);
 
         // Fetch the OSM node data using the port
         OsmNode osmNode = osmDataService.fetchNode(nodeId);
 
-        // Convert OSM node to POS domain object and upsert it
-        // TODO: Implement the actual conversion (the response is currently hard-coded).
         Pos savedPos = upsert(convertOsmNodeToPos(osmNode));
         log.info("Successfully imported POS '{}' from OSM node {}", savedPos.name(), nodeId);
 
@@ -81,23 +82,26 @@ public class PosServiceImpl implements PosService {
 
     /**
      * Converts an OSM node to a POS domain object.
-     * Note: This is a stub implementation and should be replaced with real mapping logic.
      */
     private @NonNull Pos convertOsmNodeToPos(@NonNull OsmNode osmNode) {
-        if (osmNode.nodeId().equals(5589879349L)) {
-            return Pos.builder()
-                    .name("Rada Coffee & Rösterei")
-                    .description("Caffé und Rösterei")
-                    .type(PosType.CAFE)
-                    .campus(CampusType.ALTSTADT)
-                    .street("Untere Straße")
-                    .houseNumber("21")
-                    .postalCode(69117)
-                    .city("Heidelberg")
-                    .build();
-        } else {
-            throw new OsmNodeMissingFieldsException(osmNode.nodeId());
-        }
+        String name = requireText(osmNode.name(), osmNode);
+        String street = requireText(osmNode.street(), osmNode);
+        String houseNumber = requireText(osmNode.houseNumber(), osmNode);
+        String postalCode = requireText(osmNode.postalCode(), osmNode);
+        String city = requireText(osmNode.city(), osmNode);
+
+        int parsedPostalCode = parsePostalCode(postalCode, osmNode);
+
+        return Pos.builder()
+                .name(name)
+                .description(resolveDescription(osmNode))
+                .type(resolvePosType(osmNode))
+                .campus(resolveCampus(osmNode))
+                .street(street)
+                .houseNumber(houseNumber)
+                .postalCode(parsedPostalCode)
+                .city(city)
+                .build();
     }
 
     /**
@@ -119,4 +123,83 @@ public class PosServiceImpl implements PosService {
             throw e;
         }
     }
+
+    private static String requireText(String value, OsmNode osmNode) {
+        if (value == null || value.isBlank()) {
+            throw new OsmNodeMissingFieldsException(osmNode.nodeId());
+        }
+        return value.trim();
+    }
+
+    private static int parsePostalCode(String postalCode, OsmNode osmNode) {
+        try {
+            return Integer.parseInt(postalCode.trim());
+        } catch (NumberFormatException ex) {
+            throw new OsmNodeMissingFieldsException(osmNode.nodeId());
+        }
+    }
+
+    private static String resolveDescription(OsmNode osmNode) {
+        String description = osmNode.description();
+        if (description != null && !description.isBlank()) {
+            return description.trim();
+        }
+        return "Imported from OpenStreetMap node " + osmNode.nodeId();
+    }
+
+    private static PosType resolvePosType(OsmNode osmNode) {
+        String amenity = normalize(osmNode.amenity());
+        if (amenity != null) {
+            PosType mapped = AMENITY_TO_POS_TYPE.get(amenity);
+            if (mapped != null) {
+                return mapped;
+            }
+        }
+
+        String shop = normalize(osmNode.shop());
+        if (shop != null) {
+            PosType mapped = SHOP_TO_POS_TYPE.get(shop);
+            if (mapped != null) {
+                return mapped;
+            }
+        }
+
+        return PosType.CAFE;
+    }
+
+    private static CampusType resolveCampus(OsmNode osmNode) {
+        String campusTag = normalize(osmNode.campus());
+        if (campusTag != null) {
+            for (CampusType campusType : CampusType.values()) {
+                if (campusType.name().equalsIgnoreCase(campusTag)) {
+                    return campusType;
+                }
+            }
+        }
+
+        String street = normalize(osmNode.street());
+        if (street != null && street.contains("im neuenheimer feld")) {
+            return CampusType.INF;
+        }
+
+        return CampusType.ALTSTADT;
+    }
+
+    private static String normalize(String value) {
+        return value == null ? null : value.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private static final Map<String, PosType> AMENITY_TO_POS_TYPE = Map.ofEntries(
+            Map.entry("cafe", PosType.CAFE),
+            Map.entry("coffee_shop", PosType.CAFE),
+            Map.entry("cafeteria", PosType.CAFETERIA),
+            Map.entry("restaurant", PosType.CAFETERIA),
+            Map.entry("fast_food", PosType.CAFETERIA),
+            Map.entry("vending_machine", PosType.VENDING_MACHINE)
+    );
+
+    private static final Map<String, PosType> SHOP_TO_POS_TYPE = Map.ofEntries(
+            Map.entry("bakery", PosType.BAKERY),
+            Map.entry("coffee", PosType.CAFE)
+    );
 }

@@ -64,10 +64,28 @@ Create a POS based on a JSON object provided in the request body:
 curl --header "Content-Type: application/json" --request POST --data '{"name":"New Café","description":"Description","type":"CAFE","campus":"ALTSTADT","street":"Hauptstraße","houseNumber":"100","postalCode":69117,"city":"Heidelberg"}' http://localhost:8080/api/pos
 ```
 
-Create a POS based on an OpenStreetMap node:
+Create a POS based on an OpenStreetMap node (returns `201 Created` and the imported POS in the response body):
 
 ```shell
 curl --request POST http://localhost:8080/api/pos/import/osm/5589879349 # set a valid OSM node ID here
+```
+
+Example response body (timestamps and generated ID will vary):
+
+```
+{
+  "id": 42,
+  "createdAt": "2025-11-07T12:34:56.789",
+  "updatedAt": "2025-11-07T12:34:56.789",
+  "name": "Rada",
+  "description": "Caffé und Rösterei",
+  "type": "CAFE",
+  "campus": "ALTSTADT",
+  "street": "Untere Straße",
+  "houseNumber": "21",
+  "postalCode": 69117,
+  "city": "Heidelberg"
+}
 ```
 
 #### Update POS

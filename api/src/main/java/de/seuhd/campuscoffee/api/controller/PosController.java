@@ -44,18 +44,18 @@ public class PosController {
             @RequestBody PosDto posDto) {
         PosDto created = upsert(posDto);
         return ResponseEntity
-                .created(getLocation(created.id()))
+                .created(buildLocation(created.id()))
                 .body(created);
     }
 
     @PostMapping("/import/osm/{nodeId}")
-    public ResponseEntity<PosDto> create(
+    public ResponseEntity<PosDto> importFromOsmNode(
             @PathVariable Long nodeId) {
         PosDto created = posDtoMapper.fromDomain(
                 posService.importFromOsmNode(nodeId)
         );
         return ResponseEntity
-                .created(getLocation(created.id()))
+                .created(buildLocation(created.id()))
                 .body(created);
     }
 
@@ -88,9 +88,9 @@ public class PosController {
      * @param resourceId the ID of the created resource
      * @return the location URI
      */
-    private URI getLocation(Long resourceId) {
-        return ServletUriComponentsBuilder.fromCurrentRequest()
-                .path("/{id}")
+    private URI buildLocation(Long resourceId) {
+        return ServletUriComponentsBuilder.fromCurrentContextPath()
+                .path("/api/pos/{id}")
                 .buildAndExpand(resourceId)
                 .toUri();
     }
